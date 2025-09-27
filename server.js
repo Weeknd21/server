@@ -9,11 +9,11 @@ const PORT = 3001;
 // --- CONFIGURACIÓN DE LA IMPRESORA COMPARTIDA ---
 // ⚠️ REEMPLAZA ESTO con el nombre de recurso compartido de tu impresora.
 // Ejemplo: Si compartiste tu impresora con el nombre 'POS_Recibo', usa 'POS_Recibo'.
-const SHARED_PRINTER_NAME = 'NombreDelRecursoCompartido'; 
+const SHARED_PRINTER_NAME = '192.168.1.87:9100'; 
 const CHARACTERS_PER_LINE = 42; 
 
 // La opción '-d //./...' indica a receiptio que use la ruta UNC de la impresora local compartida.
-const PRINTER_OPTIONS = `-d //./${SHARED_PRINTER_NAME} -c ${CHARACTERS_PER_LINE}`;
+const PRINTER_OPTIONS = `${SHARED_PRINTER_NAME} -c ${CHARACTERS_PER_LINE}`;
 // -------------------------------------------------
 
 // Middleware para parsear el cuerpo JSON de las peticiones
