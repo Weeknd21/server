@@ -2,30 +2,28 @@
 const express = require('express');
 const receiptio = require('receiptio');
 // Importamos la función que construye el Markdown
-const { buildReceiptMarkdown } = require('./receiptTemplate'); 
+const { buildReceiptMarkdown, buildReceiptMarkdownPassword } = require('./receiptTemplate'); 
 const app = express();
 const PORT = 3001; 
 
-// --- CONFIGURACIÓN DE LA IMPRESORA COMPARTIDA ---
-// ⚠️ REEMPLAZA ESTO con el nombre de recurso compartido de tu impresora.
-// Ejemplo: Si compartiste tu impresora con el nombre 'POS_Recibo', usa 'POS_Recibo'.
-const SHARED_PRINTER_NAME = '192.168.1.87:9100'; 
+// --- CONFIGURACIÓN DE LA IMPRESORA POR RED (ETHERNET) ---
+// ⚠️ REEMPLACE ESTA DIRECCIÓN IP con la IP estática real de su impresora.
+// Nota: receiptio asume el puerto 9100 si no se especifica.
+const PRINTER_IP_ADDRESS = '192.168.1.87'; // Ejemplo de IP
 const CHARACTERS_PER_LINE = 42; 
 
-// La opción '-d //./...' indica a receiptio que use la ruta UNC de la impresora local compartida.
-const PRINTER_OPTIONS = `${SHARED_PRINTER_NAME} -c ${CHARACTERS_PER_LINE}`;
+// La opción '-d' ahora usa la dirección IP directamente.
+const PRINTER_OPTIONS = `-d ${PRINTER_IP_ADDRESS} -c ${CHARACTERS_PER_LINE}`;
 // -------------------------------------------------
 
 // Middleware para parsear el cuerpo JSON de las peticiones
 app.use(express.json());
 
-// Middleware CORS: Es necesario para que tu aplicación Next.js (que corre en un puerto diferente) 
-// pueda llamar a este servidor local.
+// Middleware CORS: Permite que Next.js llame a este servidor local.
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*'); 
     res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
-    // Maneja peticiones OPTIONS
     if (req.method === 'OPTIONS') {
         return res.status(200).send();
     }
@@ -36,16 +34,18 @@ app.use((req, res, next) => {
 app.post('/print', async (req, res) => {
     const receiptData = req.body;
     
-    if (!receiptData || !receiptData.items || receiptData.items.length === 0) {
-        return res.status(400).json({ success: false, message: 'Datos de recibo faltantes o vacíos.' });
+    // ✅ VALIDACIÓN CORREGIDA: Verificamos que los datos existan y que incluyan un código de seguimiento.
+    if (!receiptData || !receiptData.trackingCode) {
+        // Ahora el error se lanza si no hay datos o si falta el trackingCode, que es un campo clave.
+        return res.status(400).json({ success: false, message: 'Datos de recibo faltantes o el Código de Seguimiento está vacío.' });
     }
 
     try {
         // 1. Construir el Markdown
-        const markdown = buildReceiptMarkdown(receiptData);
+        const markdown = (receiptData.password == 'true')? buildReceiptMarkdownPassword(receiptData): buildReceiptMarkdown(receiptData);
         
         console.log('Markdown generado:\n', markdown);
-        console.log(`Enviando a impresora compartida: ${PRINTER_OPTIONS}`);
+        console.log(`Enviando a impresora por IP: ${PRINTER_IP_ADDRESS}`);
 
         // 2. Ejecutar la impresión usando receiptio
         const result = await receiptio.print(markdown, PRINTER_OPTIONS);
@@ -57,10 +57,9 @@ app.post('/print', async (req, res) => {
 
     } catch (error) {
         console.error('🔴 ERROR CRÍTICO DE IMPRESIÓN:', error.message);
-        // Retorna un error para que la aplicación Next.js lo maneje
         res.status(500).json({ 
             success: false, 
-            message: 'Fallo en el servidor de impresión local. Revise la configuración de la impresora compartida.', 
+            message: 'Fallo de conexión a la impresora. Verifique la IP, la red y el firewall.', 
             details: error.message 
         });
     }
@@ -69,5 +68,5 @@ app.post('/print', async (req, res) => {
 // Inicia el servidor
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Servidor de impresión local ejecutándose en http://localhost:${PORT}`);
-    console.log(`🔌 Esperando solicitudes de impresión desde la red...`);
+    console.log(`🔌 Impresora configurada en IP: ${PRINTER_IP_ADDRESS}`);
 });
